@@ -34,10 +34,6 @@ contract CompoundMon is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Permi
         _unpause();
     }
 
-    // function mint(address to, uint256 amount) public onlyOwner {
-    //     _mint(to, amount);
-    // }
-
     function lsdmint(address to, uint256 amount) public onlyLSD {
         _mint(to, amount);
     }
@@ -47,7 +43,6 @@ contract CompoundMon is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Permi
     }
 
     // The following functions are overrides required by Solidity.
-
     function _update(address from, address to, uint256 value)
         internal
         override(ERC20, ERC20Pausable)

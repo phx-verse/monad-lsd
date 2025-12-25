@@ -2,7 +2,7 @@
 // Compatible with OpenZeppelin Contracts ^5.5.0
 pragma solidity ^0.8.27;
 
-import "./IMonadStaking.sol";
+import "./interfaces/IMonadStaking.sol";
 
 contract MockMonadStaking is IMonadStaking {
     // Minimum stake required from validator's own account

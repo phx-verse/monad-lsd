@@ -5,49 +5,55 @@ const { ethers } = await network.connect();
 const MonLsd = await ethers.getContractAt("MonLsdUpgradeable", process.env.MON_LSD_ADDRESS!);
 
 async function startMonadLsdService() {
+    console.log('Starting MonadLsd service...');
     setInterval(async () => {
-        console.log('MonadLsd task one round: ');
-        // invoke claimReward
-        let totalReward = await MonLsd.totalUnclaimedReward.staticCall();
-        if (totalReward > 0) {
-            console.log(`Claiming rewards: ${ethers.formatEther(totalReward)} ETH`);
-            const tx = await MonLsd.claimReward();
-            await tx.wait();
-        }
-
-        let currentEpoch = await MonLsd.currentEpoch.staticCall();
-        let currentBlock = await ethers.provider.getBlockNumber();
-        
-        // invoke stakePending
-        if (isInOperateWindow(currentBlock, currentEpoch)) {
-            let pendingStake = await MonLsd.pendingStake();
-            let pendingRewards = await MonLsd.pendingRewards();
-            if (pendingRewards > 0 || pendingStake > 0) {
-                console.log(`Staking pending: ${ethers.formatEther(pendingStake)} ETH, pending rewards: ${ethers.formatEther(pendingRewards)} ETH`);
-                const tx = await MonLsd.stakePending();
+        try {
+            console.log('MonadLsd task one round: ');
+            // invoke claimReward
+            let totalReward = await MonLsd.totalUnclaimedReward.staticCall();
+            if (totalReward > 0) {
+                console.log(`Claiming rewards: ${ethers.formatEther(totalReward)} ETH`);
+                const tx = await MonLsd.claimReward();
                 await tx.wait();
             }
 
-            // invoke handlePendingUndelegate
-            let pendingUnstake = await MonLsd.pendingUnstake();
-            if (pendingUnstake > 0) {
-                console.log(`Handling pending undelegate: ${ethers.formatEther(pendingUnstake)} ETH`);
-                const tx = await MonLsd.handlePendingUndelegate();
+            let currentEpoch = await MonLsd.currentEpoch.staticCall();
+            let currentBlock = await ethers.provider.getBlockNumber();
+            
+            // invoke stakePending
+            if (isInOperateWindow(currentBlock, currentEpoch)) {
+                let pendingStake = await MonLsd.pendingStake();
+                let pendingRewards = await MonLsd.pendingRewards();
+                if (pendingRewards > 0 || pendingStake > 0) {
+                    console.log(`Staking pending: ${ethers.formatEther(pendingStake)} ETH, pending rewards: ${ethers.formatEther(pendingRewards)} ETH`);
+                    const tx = await MonLsd.stakePending();
+                    await tx.wait();
+                }
+
+                // invoke handlePendingUndelegate
+                let pendingUnstake = await MonLsd.pendingUnstake();
+                if (pendingUnstake > 0) {
+                    console.log(`Handling pending undelegate: ${ethers.formatEther(pendingUnstake)} ETH`);
+                    const tx = await MonLsd.handlePendingUndelegate();
+                    await tx.wait();
+                }
+            }
+
+            // invoke handleWithdraws
+            let withdrawQueueLen = await MonLsd.withdrawQueueLen();
+            if (withdrawQueueLen > 0) {
+                let firstReady = await MonLsd.isFirstWithdrawItemReady.staticCall();
+                if (!firstReady) return;
+                console.log(`Handling withdraws, queue length: ${withdrawQueueLen}`);
+                const tx = await MonLsd.handleWithdraws();
                 await tx.wait();
             }
-        }
 
-        // invoke handleWithdraws
-        let withdrawQueueLen = await MonLsd.withdrawQueueLen();
-        if (withdrawQueueLen > 0) {
-            let firstReady = await MonLsd.isFirstWithdrawItemReady.staticCall();
-            if (!firstReady) return;
-            console.log(`Handling withdraws, queue length: ${withdrawQueueLen}`);
-            const tx = await MonLsd.handleWithdraws();
-            await tx.wait();
+        } catch (err) {
+            console.error('Error in MonadLsd service loop:', err);
         }
         
-    }, 1000 * 60 * 5); // every 5 minutes
+    }, 1000 * 60 * 10); // every 10 minutes
 }
 
 startMonadLsdService().catch(err => {

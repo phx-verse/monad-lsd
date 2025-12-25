@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {IcMon} from "./IcMon.sol";
-import {IMonadStaking} from "./IMonadStaking.sol";
+import {IcMon} from "./interfaces/IcMon.sol";
+import {IMonadStaking} from "./interfaces/IMonadStaking.sol";
 import {PoolAPY} from "./PoolAPY.sol";
 
 contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
@@ -21,11 +21,11 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
   IcMon cMon;
   uint256 public totalAssets;
   
-  uint256 public pendingStake; // amount waiting to be staked
-  uint256 public pendingUnstake; // amount waiting to be unstaked
-  uint256 public pendingRewards; // rewards waiting to be stake
+  uint256 public pendingStake; // amount waiting to be delegated
+  uint256 public pendingUnstake; // amount waiting to be undelegated
+  uint256 public pendingRewards; // rewards waiting to be delegated
 
-  uint256 public interestFeeAccumulated; // total interest fee accumulated
+  uint256 public interestFeeAccumulated; // total interest fee accumulated of the pool
 
   uint64 public currentValidatorId;
 
@@ -111,7 +111,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
   }
 
   function decreaseDelegatedAmount(uint64 validatorId, uint256 amount) internal {
-    (bool exists, uint256 prevAmount) = delegatedAmounts.tryGet(validatorId);
+    (bool _exists, uint256 prevAmount) = delegatedAmounts.tryGet(validatorId);
     require(prevAmount >= amount, "Decrease exceeds delegated amount");
     delegatedAmounts.set(validatorId, prevAmount - amount);
   }
@@ -135,29 +135,8 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     return nextId;
   }
 
-  function self_balance() public view returns (uint256) {
+  function selfBalance() public view returns (uint256) {
     return address(this).balance;
-  }
-
-  function poolAPY() public returns (uint256) {
-    if(apyQueue.start == apyQueue.end) return 0;
-    
-    uint256 totalReward = 0;
-    uint256 totalWorkload = 0;
-    for(uint256 i = apyQueue.start; i < apyQueue.end; i++) {
-      PoolAPY.ApyNode memory node = apyQueue.items[i];
-      totalReward = totalReward + node.reward;
-      totalWorkload = totalWorkload + node.assets * (node.endTime - node.startTime);
-    }
-
-    // consider the latest reward that is not yet recorded in apyQueue
-    uint256 latestReward = totalUnclaimedReward();
-    if (latestReward > 0) {
-      totalReward += latestReward;
-      totalWorkload += snapshot.asset * (block.timestamp - snapshot.time);
-    }
-
-    return totalReward * RATIO_BASE * 365 days / totalWorkload;
   }
 
   function lsdRatio() public view returns (uint256) {
@@ -177,6 +156,53 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     return lsdAmount * lsdRatio() / RATIO_BASE;
   }
 
+  // should be a view function
+  function poolAPY() public returns (uint256) {
+    if(apyQueue.start == apyQueue.end) return 0;
+    
+    uint256 totalReward = 0;
+    uint256 totalWorkload = 0;
+    for(uint256 i = apyQueue.start; i < apyQueue.end; i++) {
+      PoolAPY.ApyNode memory node = apyQueue.items[i];
+      totalReward = totalReward + node.reward;
+      totalWorkload += node.assets * (node.endTime - node.startTime);
+    }
+
+    // consider the latest reward that is not yet recorded in apyQueue
+    uint256 latestReward = totalUnclaimedReward();
+    if (latestReward > 0) {
+      totalReward += latestReward;
+      totalWorkload += snapshot.asset * (block.timestamp - snapshot.time);
+    }
+
+    return totalReward * RATIO_BASE * 365 days / totalWorkload;
+  }
+
+  function convertPendingStakeToWithdrawn() internal {
+    if (pendingStake == 0 || pendingUnstake == 0) return;
+
+    if (pendingStake >= pendingUnstake) {
+      pendingStake -= pendingUnstake;
+      pendingUnstake = 0;
+    } else {
+      pendingUnstake -= pendingStake;
+      pendingStake = 0;
+    }
+  }
+
+  function convertPendingRewardToWithdrawn() internal {
+    if (pendingRewards == 0 || pendingUnstake == 0) return;
+
+    if (pendingRewards >= pendingUnstake) {
+      pendingRewards -= pendingUnstake;
+      pendingUnstake = 0;
+    } else {
+      pendingUnstake -= pendingRewards;
+      pendingRewards = 0;
+    }
+  }
+
+  // ====== user write functions ======
   function deposit() payable public {
     require(msg.value > 0, "Must send ETH to stake");
     
@@ -191,6 +217,8 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     updateSnapshot();
 
     emit Deposit(msg.sender, msg.value, lsdAmount);
+
+    convertPendingStakeToWithdrawn();
   }
 
   function unstake(uint256 lsdAmount) public {
@@ -209,13 +237,19 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     pendingUnstake += monAmount;
 
     emit Unstake(msg.sender, lsdAmount, monAmount);
+
+    convertPendingStakeToWithdrawn();
+    convertPendingRewardToWithdrawn();
   }
 
   function withdraw(uint256 amount) public {
     require(amount > 0, "Must withdraw more than 0");
-    require(self_balance() >= amount, "Not enough ETH in contract");
-    payable(msg.sender).transfer(amount);
+    require(selfBalance() >= amount, "Not enough ETH in contract");
+    require(unwithdrawnAmounts[msg.sender] >= amount, "Withdraw amount exceeds unwithdrawn amount");
+    
     unwithdrawnAmounts[msg.sender] -= amount;
+    (bool sent, ) = payable(msg.sender).call{value: amount}("");
+    require(sent, "Failed to send Ether");
 
     emit Withdraw(msg.sender, amount);
   }
@@ -225,7 +259,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     withdraw(amount);
   }
 
-  // ====== manager functions ======
+  // ====== service functions ======
   function stakePending() public {
     handlePendingStake();
     handlePendingRewards();
@@ -266,10 +300,13 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
         uint256 fee = calFee(unclaimedReward);
         interestFeeAccumulated += fee;
         pendingRewards += (unclaimedReward - fee);
+
+        convertPendingRewardToWithdrawn();
       }
     }
   }
 
+  // should be a view function
   function totalUnclaimedReward() public returns (uint256) {
     uint256[] memory keys = delegatedAmounts.keys();
     uint256 totalReward = 0;
@@ -279,10 +316,6 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
       totalReward += unclaimedReward;
     }
     return totalReward;
-  }
-
-  function setCurrentValidatorId(uint64 validatorId) public onlyOwner {
-    currentValidatorId = validatorId;
   }
 
   function handlePendingUndelegate() public {
@@ -315,6 +348,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     }
   }
 
+  // should be a view function
   function isFirstWithdrawItemReady() public returns (bool) {
     if (startId == endId) {
       return false;
@@ -351,15 +385,21 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     }
   }
 
-  function withdrawInterestFee(address to, uint256 amount) public onlyOwner {
-    require(amount > 0, "No interest fee accumulated");
-    require(self_balance() >= amount, "Not enough ETH in contract");
-    require(amount <= interestFeeAccumulated, "Amount exceeds accumulated fee");
-    interestFeeAccumulated -= amount;
-    payable(to).transfer(amount);
+  // ====== owner functions ======
+  function setCurrentValidatorId(uint64 validatorId) public onlyOwner {
+    currentValidatorId = validatorId;
   }
 
-  function withdrawAllInterestFee(address to) public onlyOwner {
+  function withdrawInterestFee(address payable to, uint256 amount) public onlyOwner {
+    require(amount > 0, "No interest fee accumulated");
+    require(selfBalance() >= amount, "Not enough ETH in contract");
+    require(amount <= interestFeeAccumulated, "Amount exceeds accumulated fee");
+    interestFeeAccumulated -= amount;
+    (bool sent, ) = to.call{value: amount}("");
+    require(sent, "Failed to send Ether");
+  }
+
+  function withdrawAllInterestFee(address payable to) public onlyOwner {
     uint256 amount = interestFeeAccumulated;
     withdrawInterestFee(to, amount);
   }
@@ -394,7 +434,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
   }
 
   function stake(uint64 validatorId, uint256 amount) internal {
-    require(self_balance() >= amount, "Not enough ETH in contract");
+    require(selfBalance() >= amount, "Not enough ETH in contract");
     bool success = monadStaking.delegate{value: amount}(validatorId);
     require(success, "Stake failed");
     increaseDelegatedAmount(validatorId, amount);

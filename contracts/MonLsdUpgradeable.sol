@@ -6,7 +6,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IcMon} from "./interfaces/IcMon.sol";
 import {IMonadStaking} from "./interfaces/IMonadStaking.sol";
-import {PoolAPY} from "./PoolAPY.sol";
+import {PoolAPY} from "./utils/PoolAPY.sol";
 
 contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
   using EnumerableMap for EnumerableMap.UintToUintMap;

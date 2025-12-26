@@ -357,7 +357,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     uint64 epoch = currentEpoch();
     WithdrawInfo memory info = withdraws[startId];
     ( , , uint64 withdrawEpoch) = monadStaking.getWithdrawalRequest(info.validatorId, address(this), info.withdrawId);
-    return withdrawEpoch <= epoch;
+    return withdrawEpoch < epoch;
   }
 
   function handleWithdraws() public {
@@ -370,7 +370,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     for (uint256 i = startId; i < endId; i++) {
       WithdrawInfo memory info = withdraws[i];
       (uint256 withdrawalAmount, , uint64 withdrawEpoch) = monadStaking.getWithdrawalRequest(info.validatorId, address(this), info.withdrawId);
-      if (withdrawEpoch > epoch) {
+      if (withdrawEpoch >= epoch) {
         break;
       }
       bool success = monadStaking.withdraw(info.validatorId, info.withdrawId);

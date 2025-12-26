@@ -13,5 +13,9 @@ let epoch = await Staking.getEpoch();
 console.log("Current epoch:", epoch);
 
 // @ts-ignore
-let deleInfo = await Staking.getDelegator(1, '0x1d6386e7b848C379C9CB2fF29275994d5e9BD382');
+let deleInfo = await Staking.getDelegator(6, '0x7deFad05B632Ba2CeF7EA20731021657e20a7596');
 console.log("Delegator info:", deleInfo);
+
+// @ts-ignore
+let withdrawInfo = await Staking.getWithdrawalRequest(6, "0x7deFad05B632Ba2CeF7EA20731021657e20a7596", 1);
+console.log("Withdrawal info:", withdrawInfo);

@@ -19,7 +19,6 @@ async function startMonadLsdService() {
             if (totalReward > 0) {
                 logger.info(`Claiming rewards: ${ethers.formatEther(totalReward)} ETH`);
                 const tx = await MonLsd.claimReward();
-                await tx.wait();
             }
 
             let currentEpoch = await MonLsd.currentEpoch.staticCall();
@@ -35,7 +34,7 @@ async function startMonadLsdService() {
                     const tx = await MonLsd.stakePending();
                     let receipt = await tx.wait();
                     
-                    if (receipt && receipt.status === 0) {
+                    if (receipt && receipt.status === 1) {
                         handledEpochs.set(currentEpoch, true);
                     }
                 }

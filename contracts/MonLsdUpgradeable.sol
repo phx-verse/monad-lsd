@@ -240,6 +240,21 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
 
     convertPendingStakeToWithdrawn();
     convertPendingRewardToWithdrawn();
+
+    withdrawIfReady(msg.sender);
+  }
+
+  function withdrawIfReady(address to) internal {
+    uint256 amount = unwithdrawnAmounts[to];
+    if (selfBalance() < amount) {
+      return;
+    }
+
+    (bool sent, ) = payable(to).call{value: amount}("");
+    if (sent) {
+      unwithdrawnAmounts[to] -= amount;
+      emit Withdraw(to, amount);
+    }
   }
 
   function withdraw(uint256 amount) public {

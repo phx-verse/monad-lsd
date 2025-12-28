@@ -17,5 +17,5 @@ let deleInfo = await Staking.getDelegator(6, '0x7deFad05B632Ba2CeF7EA20731021657
 console.log("Delegator info:", deleInfo);
 
 // @ts-ignore
-let withdrawInfo = await Staking.getWithdrawalRequest(6, "0x7deFad05B632Ba2CeF7EA20731021657e20a7596", 1);
+let withdrawInfo = await Staking.getWithdrawalRequest(6, "0x7deFad05B632Ba2CeF7EA20731021657e20a7596", 5);
 console.log("Withdrawal info:", withdrawInfo);

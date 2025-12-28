@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IcMon} from "./interfaces/IcMon.sol";
@@ -10,6 +11,7 @@ import {PoolAPY} from "./utils/PoolAPY.sol";
 
 contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
   using EnumerableMap for EnumerableMap.UintToUintMap;
+  using EnumerableSet for EnumerableSet.AddressSet;
   using PoolAPY for PoolAPY.ApyQueue;
 
   uint256 public constant RATIO_BASE = 1000_000_000;
@@ -44,6 +46,8 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
 
   PoolAPY.ApyQueue private apyQueue;
   Snapshot snapshot;
+
+  EnumerableSet.AddressSet private stakers;
 
   struct Snapshot {
     uint256 time;
@@ -156,28 +160,6 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     return lsdAmount * lsdRatio() / RATIO_BASE;
   }
 
-  // should be a view function
-  function poolAPY() public returns (uint256) {
-    if(apyQueue.start == apyQueue.end) return 0;
-    
-    uint256 totalReward = 0;
-    uint256 totalWorkload = 0;
-    for(uint256 i = apyQueue.start; i < apyQueue.end; i++) {
-      PoolAPY.ApyNode memory node = apyQueue.items[i];
-      totalReward = totalReward + node.reward;
-      totalWorkload += node.assets * (node.endTime - node.startTime);
-    }
-
-    // consider the latest reward that is not yet recorded in apyQueue
-    uint256 latestReward = totalUnclaimedReward();
-    if (latestReward > 0) {
-      totalReward += latestReward;
-      totalWorkload += snapshot.asset * (block.timestamp - snapshot.time);
-    }
-
-    return totalReward * RATIO_BASE * 365 days / totalWorkload;
-  }
-
   function convertPendingStakeToWithdrawn() internal {
     if (pendingStake == 0 || pendingUnstake == 0) return;
 
@@ -202,9 +184,37 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     }
   }
 
+  // should be a view function
+  function poolAPY() public returns (uint256) {
+    if(apyQueue.start == apyQueue.end) return 0;
+    
+    uint256 totalReward = 0;
+    uint256 totalWorkload = 0;
+    for(uint256 i = apyQueue.start; i < apyQueue.end; i++) {
+      PoolAPY.ApyNode memory node = apyQueue.items[i];
+      totalReward = totalReward + node.reward;
+      totalWorkload += node.assets * (node.endTime - node.startTime);
+    }
+
+    // consider the latest reward that is not yet recorded in apyQueue
+    uint256 latestReward = totalUnclaimedReward();
+    if (latestReward > 0) {
+      totalReward += latestReward;
+      totalWorkload += snapshot.asset * (block.timestamp - snapshot.time);
+    }
+
+    return totalReward * RATIO_BASE * 365 days / totalWorkload;
+  }
+
+  function totalStakers() public view returns (uint256) {
+    return stakers.length();
+  }
+
   // ====== user write functions ======
   function deposit() payable public {
     require(msg.value > 0, "Must send ETH to stake");
+
+    stakers.add(msg.sender);
     
     addApyNode(0);
 

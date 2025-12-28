@@ -29,6 +29,8 @@
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "dotenv": "^17.2.3",
+    "ts-node": "^10.9.2",
+    "viem": "^2.43.3",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0"
   }

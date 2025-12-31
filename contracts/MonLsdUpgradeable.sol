@@ -96,6 +96,15 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     return endId - startId;
   }
 
+  function withdrawInfos() public view returns (WithdrawInfo[] memory) {
+    uint256 len = withdrawQueueLen();
+    WithdrawInfo[] memory infos = new WithdrawInfo[](len);
+    for (uint256 i = 0; i < len; i++) {
+      infos[i] = withdraws[startId + i];
+    }
+    return infos;
+  }
+
   function addApyNode(uint256 reward) internal {
     apyQueue.enqueueAndClearOutdated(PoolAPY.ApyNode({
       startTime: snapshot.time,

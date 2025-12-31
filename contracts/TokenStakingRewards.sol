@@ -83,11 +83,12 @@ contract TokenStakingRewards is Ownable {
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
-            payable(msg.sender).call{value: reward}("");
+            (bool _success,) = payable(msg.sender).call{value: reward}("");
+            require(_success, "reward transfer failed");
         }
     }
 
-    function setRewardsDuration(uint256 _duration) external onlyOwner {
+    function setRewardsDuration(uint256 _duration) public onlyOwner {
         require(finishAt < block.timestamp, "reward duration not finished");
         duration = _duration;
     }
@@ -95,7 +96,7 @@ contract TokenStakingRewards is Ownable {
     // Note: need transfer rewards to this contract before calling this
     function notifyRewardAmount(
         uint256 _amount
-    ) external onlyOwner updateReward(address(0)) {
+    ) public onlyOwner updateReward(address(0)) {
         if (block.timestamp >= finishAt) {
             rewardRate = _amount / duration;
         } else {
@@ -113,6 +114,12 @@ contract TokenStakingRewards is Ownable {
         updatedAt = block.timestamp;
     }
 
+    function setRewardRate(uint256 _duration) public payable onlyOwner {
+        setRewardsDuration(_duration);
+        notifyRewardAmount(msg.value);
+
+    }
+
     function _min(uint256 x, uint256 y) private pure returns (uint256) {
         return x <= y ? x : y;
     }
@@ -124,7 +131,8 @@ contract TokenStakingRewards is Ownable {
     function withdrawRemainingBalance() external onlyOwner {
         require(block.timestamp > finishAt, "reward duration not finished");
         uint256 balance = selfBalance();
-        payable(msg.sender).call{value: balance}("");
+        (bool success, ) = payable(msg.sender).call{value: balance}("");
+        require(success, "withdraw failed");
     }
 
     receive() external payable {}

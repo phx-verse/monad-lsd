@@ -13,14 +13,21 @@ async function startMonadLsdService() {
     logger.info('Starting MonadLsd service...');
     setInterval(async () => {
         try {
-            logger.info('MonadLsd task one round: ');
             // invoke claimReward
             let totalReward = await MonLsd.totalUnclaimedReward.staticCall();
             if (totalReward > 0) {
                 logger.info(`Claiming rewards: ${ethers.formatEther(totalReward)} ETH`);
                 const tx = await MonLsd.claimReward();
             }
+        } catch (err) {
+            logger.error('Error in MonadLsd service loop:', err);
+        }
+        
+    }, 1000 * 60 * 30);
 
+    setInterval(async () => {
+        try {
+            logger.info('MonadLsd task one round: ');
             let currentEpoch = await MonLsd.currentEpoch.staticCall();
             let currentBlock = await ethers.provider.getBlockNumber();
             
@@ -74,7 +81,7 @@ function boundaryBlock(epoch: bigint) {
     return epoch * BigInt(EPOCH_BLOCKS);
 }
 
-// Check if we are within the operate window (last 5000 blocks of the epoch)
+// Check if we are within the operate window (last 4000 blocks of the epoch)
 function isInOperateWindow(currentBlock: number, epoch: bigint) {
     return boundaryBlock(epoch) - BigInt(currentBlock) <= BigInt(4000);
 }

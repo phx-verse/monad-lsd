@@ -60,6 +60,13 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     uint256 amount;
   }
 
+  struct WithdrawInfoWithEpoch {
+    uint64 validatorId;
+    uint8 withdrawId;
+    uint256 amount;
+    uint64 epoch; // finish epoch
+  }
+
   event Deposit(
     address indexed user,
     uint256 monAmount,
@@ -96,11 +103,18 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     return endId - startId;
   }
 
-  function withdrawInfos() public view returns (WithdrawInfo[] memory) {
+  function withdrawInfos() public returns (WithdrawInfoWithEpoch[] memory) {
     uint256 len = withdrawQueueLen();
-    WithdrawInfo[] memory infos = new WithdrawInfo[](len);
+    WithdrawInfoWithEpoch[] memory infos = new WithdrawInfoWithEpoch[](len);
     for (uint256 i = 0; i < len; i++) {
-      infos[i] = withdraws[startId + i];
+      WithdrawInfo memory info = withdraws[startId + i];
+      ( , , uint64 withdrawEpoch) = monadStaking.getWithdrawalRequest(info.validatorId, address(this), info.withdrawId);
+      infos[i] = WithdrawInfoWithEpoch({
+        validatorId: info.validatorId,
+        withdrawId: info.withdrawId,
+        amount: info.amount,
+        epoch: withdrawEpoch
+      });
     }
     return infos;
   }

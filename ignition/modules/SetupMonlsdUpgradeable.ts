@@ -7,7 +7,7 @@ export default buildModule("SetupMonLsd", (m) => {
 
   const monLsd = m.contractAt("MonLsdUpgradeable", monadLsd);
   m.call(monLsd, "setCMonAddress", [cMon]);
-  m.call(monLsd, "setCurrentValidatorId", [1]); // TODO update current validatorId
+  m.call(monLsd, "setCurrentValidatorId", [parseInt(process.env.VALIDATOR_ID || "0")]);
 
   return { monLsd };
 });

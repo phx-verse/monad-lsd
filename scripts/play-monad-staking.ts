@@ -5,6 +5,8 @@ import { network } from "hardhat";
 const { ethers } = await network.connect();
 const [sender] = await ethers.getSigners();
 
+console.log("Using account:", sender.address);
+
 const STAKING_CONTRACT_ADDRESS = "0x0000000000000000000000000000000000001000";
 const Staking = await ethers.getContractAt(MonadStakingAbi, STAKING_CONTRACT_ADDRESS);
 

@@ -43,7 +43,13 @@ export default defineConfig({
       type: "http",
       chainType: "l1",
       url: configVariable("MONAD_RPC_URL"),
-      accounts: [configVariable("MONAD_PRIVATE_KEY")],
+      accounts: {
+        mnemonic: configVariable("ACCOUNTS_MNEMONIC"), 
+        path: "m/44'/60'/0'/0",
+        initialIndex: 0,
+        count: 10,
+        passphrase: configVariable("ACCOUNTS_PASSPHRASE"),
+      },
     },
     monadTest: {
       type: "http",

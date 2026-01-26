@@ -23,7 +23,7 @@ async function startMonadLsdService() {
             logger.error('Error in MonadLsd service loop:', err);
         }
         
-    }, 1000 * 60 * 30);
+    }, 1000 * 60 * 60);
 
     setInterval(async () => {
         try {

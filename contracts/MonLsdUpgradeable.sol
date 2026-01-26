@@ -49,6 +49,8 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
 
   EnumerableSet.AddressSet private stakers;
 
+  uint256 public totalPoSRewards;
+
   struct Snapshot {
     uint256 time;
     uint256 asset;
@@ -345,6 +347,8 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
       }
       bool success = monadStaking.claimRewards(validatorId);
       if (success) {
+        totalPoSRewards += unclaimedReward;
+        
         uint256 fee = calFee(unclaimedReward);
         interestFeeAccumulated += fee;
         pendingRewards += (unclaimedReward - fee);

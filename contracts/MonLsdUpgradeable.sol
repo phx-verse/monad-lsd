@@ -149,6 +149,14 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     return (reward * COMMISSION) / RATIO_BASE;
   }
 
+  function calAmountAfterFee(uint256 reward) public view returns (uint256) {
+    return (reward * (RATIO_BASE - COMMISSION)) / RATIO_BASE;
+  }
+
+  function calOriginalAmount(uint256 amountAfterFee) public view returns (uint256) {
+    return (amountAfterFee * RATIO_BASE) / (RATIO_BASE - COMMISSION);
+  }
+
   function enqueueWithdraw(uint64 validatorId, uint8 withdrawId, uint256 amount) internal {
     withdraws[endId] = WithdrawInfo({
       validatorId: validatorId,
@@ -222,11 +230,13 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     }
 
     // consider the latest reward that is not yet recorded in apyQueue
-    uint256 latestReward = totalUnclaimedReward();
+    uint256 latestReward = calAmountAfterFee(totalUnclaimedReward()) + pendingRewards;
     if (latestReward > 0) {
       totalReward += latestReward;
       totalWorkload += snapshot.asset * (block.timestamp - snapshot.time);
     }
+
+    totalReward = calOriginalAmount(totalReward);
 
     return totalReward * RATIO_BASE * 365 days / totalWorkload;
   }

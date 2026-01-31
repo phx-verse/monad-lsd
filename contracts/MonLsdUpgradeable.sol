@@ -205,18 +205,6 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     }
   }
 
-  function convertPendingRewardToWithdrawn() internal {
-    if (pendingRewards == 0 || pendingUnstake == 0) return;
-
-    if (pendingRewards >= pendingUnstake) {
-      pendingRewards -= pendingUnstake;
-      pendingUnstake = 0;
-    } else {
-      pendingUnstake -= pendingRewards;
-      pendingRewards = 0;
-    }
-  }
-
   // should be a view function
   function poolAPY() public returns (uint256) {
     if(apyQueue.start == apyQueue.end) return 0;
@@ -251,7 +239,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
 
     stakers.add(msg.sender);
     
-    addApyNode(0);
+    // addApyNode(0);
 
     pendingStake += msg.value;
 
@@ -259,7 +247,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     cMon.lsdmint(msg.sender, lsdAmount);
     totalAssets += msg.value;
     
-    updateSnapshot();
+    // updateSnapshot();
 
     emit Deposit(msg.sender, msg.value, lsdAmount);
 
@@ -270,7 +258,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     require(lsdAmount > 0, "Must unstake more than 0");
     require(cMon.balanceOf(msg.sender) >= lsdAmount, "Not enough cMon balance");
     
-    addApyNode(0);
+    // addApyNode(0);
 
     uint256 monAmount = lsdToMon(lsdAmount);
     cMon.lsdburn(msg.sender, lsdAmount);
@@ -284,7 +272,6 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     emit Unstake(msg.sender, lsdAmount, monAmount);
 
     convertPendingStakeToWithdrawn();
-    convertPendingRewardToWithdrawn();
 
     withdrawIfReady(msg.sender);
   }
@@ -362,8 +349,6 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
         uint256 fee = calFee(unclaimedReward);
         interestFeeAccumulated += fee;
         pendingRewards += (unclaimedReward - fee);
-
-        convertPendingRewardToWithdrawn();
       }
     }
   }

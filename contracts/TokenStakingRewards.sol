@@ -117,7 +117,6 @@ contract TokenStakingRewards is Ownable {
     function setRewardRate(uint256 _duration) public payable onlyOwner {
         setRewardsDuration(_duration);
         notifyRewardAmount(msg.value);
-
     }
 
     function _min(uint256 x, uint256 y) private pure returns (uint256) {

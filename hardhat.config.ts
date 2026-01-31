@@ -2,6 +2,8 @@ import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mo
 import { configVariable, defineConfig } from "hardhat/config";
 import "dotenv/config";
 
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
+
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthersPlugin],
   solidity: {
@@ -58,4 +60,29 @@ export default defineConfig({
       accounts: [configVariable("MONAD_TEST_PRIVATE_KEY")],
     },
   },
+  verify: {
+    blockscout: {
+      enabled: false,
+    },
+    etherscan: {
+      enabled: true,
+      apiKey: ETHERSCAN_API_KEY,
+    },
+    sourcify: {
+      enabled: true,
+      apiUrl: "https://sourcify-api-monad.blockvision.org",
+    },
+  },
+  chainDescriptors: {
+    143: {
+      name: "MonadMainnet",
+      blockExplorers: {
+        etherscan: {
+          name: "Monadscan",
+          url: "https://monadscan.com",
+          apiUrl: "https://api.etherscan.io/v2/api",
+        },
+      },
+    },
+  }
 });

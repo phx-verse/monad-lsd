@@ -247,7 +247,7 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     cMon.lsdmint(msg.sender, lsdAmount);
     totalAssets += msg.value;
     
-    // updateSnapshot();
+    updateSnapshot();
 
     emit Deposit(msg.sender, msg.value, lsdAmount);
 

@@ -40,8 +40,9 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
   uint256 private endId = 0; // points to the next empty slot
   mapping(uint256 => WithdrawInfo) private withdraws; // withdrawId to WithdrawInfo 
 
+  // validatorId to pending undelegate amount
+  mapping(uint64 => uint256) public pendingUndelegateAmounts;
   // each validatorId to delegated amount
-  mapping(uint64 => uint256) public pendingUndelegateAmounts; // validatorId to pending undelegate amount
   EnumerableMap.UintToUintMap private delegatedAmounts;
 
   PoolAPY.ApyQueue private apyQueue;
@@ -98,7 +99,8 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
 
   function updateSnapshot() internal {
     snapshot.time = block.timestamp;
-    snapshot.asset = totalAssets;
+    uint256 totalDelegate = totalDelegatedAmount();
+    snapshot.asset = totalDelegate;
   }
 
   function withdrawQueueLen() public view returns (uint256) {
@@ -142,7 +144,22 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
   function decreaseDelegatedAmount(uint64 validatorId, uint256 amount) internal {
     (bool _exists, uint256 prevAmount) = delegatedAmounts.tryGet(validatorId);
     require(prevAmount >= amount, "Decrease exceeds delegated amount");
-    delegatedAmounts.set(validatorId, prevAmount - amount);
+    if (prevAmount == amount) {
+      delegatedAmounts.remove(validatorId);
+    } else {
+      delegatedAmounts.set(validatorId, prevAmount - amount);
+    }
+  }
+
+  function totalDelegatedAmount() public view returns (uint256) {
+    uint256 total = 0;
+    uint256[] memory keys = delegatedAmounts.keys();
+    for (uint i = 0; i < keys.length; i++) {
+      uint256 validatorId = keys[i];
+      total += delegatedAmounts.get(validatorId);
+      total -= pendingUndelegateAmounts[uint64(validatorId)];
+    }
+    return total;
   }
 
   function calFee(uint256 reward) public view returns (uint256) {
@@ -239,16 +256,11 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
 
     stakers.add(msg.sender);
     
-    // addApyNode(0);
-
-    pendingStake += msg.value;
-
     uint256 lsdAmount = monToLsd(msg.value);
     cMon.lsdmint(msg.sender, lsdAmount);
+    pendingStake += msg.value;
     totalAssets += msg.value;
     
-    updateSnapshot();
-
     emit Deposit(msg.sender, msg.value, lsdAmount);
 
     convertPendingStakeToWithdrawn();
@@ -258,16 +270,12 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     require(lsdAmount > 0, "Must unstake more than 0");
     require(cMon.balanceOf(msg.sender) >= lsdAmount, "Not enough cMon balance");
     
-    // addApyNode(0);
-
     uint256 monAmount = lsdToMon(lsdAmount);
     cMon.lsdburn(msg.sender, lsdAmount);
+    pendingUnstake += monAmount;
     totalAssets -= monAmount;
 
-    updateSnapshot();
-
     unwithdrawnAmounts[msg.sender] += monAmount;
-    pendingUnstake += monAmount;
 
     emit Unstake(msg.sender, lsdAmount, monAmount);
 
@@ -308,11 +316,17 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
 
   // ====== service functions ======
   function stakePending() public {
-    handlePendingStake();
+    bool hasPending = pendingStake > 0 || pendingRewards > 0;
+    if (!hasPending) {
+      return;
+    }
+    addApyNode(pendingRewards);
     handlePendingRewards();
+    handlePendingStake();
+    updateSnapshot();
   }
 
-  function handlePendingStake() public {
+  function handlePendingStake() internal {
     if (pendingStake == 0) {
       return;
     }
@@ -320,17 +334,12 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
     pendingStake = 0;
   }
 
-  function handlePendingRewards() public {
+  function handlePendingRewards() internal {
     if (pendingRewards == 0) {
       return;
     }
-
-    addApyNode(pendingRewards);
-
-    totalAssets += pendingRewards;
-    updateSnapshot();
-    
     stake(currentValidatorId, pendingRewards);
+    totalAssets += pendingRewards;
     pendingRewards = 0;
   }
 
@@ -392,6 +401,13 @@ contract MonLsdUpgradeable is Initializable, OwnableUpgradeable {
         pendingUnstake -= unstakeAmount;
         enqueueWithdraw(validatorId, withdrawId, unstakeAmount);
       }
+    }
+
+    // if any withdraw is processed, update the snapshot to reflect the change of total delegated amount
+    uint256 totalDelegated = totalDelegatedAmount();
+    if (snapshot.asset != totalDelegated) {
+      addApyNode(0);
+      updateSnapshot();
     }
   }
 
